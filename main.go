@@ -7,6 +7,7 @@ import (
 	"github.com/ImJustRicky/muster-tui/internal/auth"
 	"github.com/ImJustRicky/muster-tui/internal/config"
 	"github.com/ImJustRicky/muster-tui/internal/engine"
+	"github.com/ImJustRicky/muster-tui/internal/registry"
 	"github.com/ImJustRicky/muster-tui/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -52,19 +53,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Find deploy.json
-	configPath, err := config.FindConfig()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "muster.json not found. Run this from a muster project directory.")
-		os.Exit(1)
-	}
-
-	cfg, err := config.LoadDeploy(configPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading deploy.json: %v\n", err)
-		os.Exit(1)
-	}
-
 	// Create engine
 	eng, err := engine.NewEngine(token)
 	if err != nil {
@@ -72,8 +60,60 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Launch TUI
-	app := tui.NewApp(eng, cfg)
+	// Try to find config in current directory first
+	configPath, configErr := config.FindConfig()
+
+	if configErr == nil {
+		// We're inside a muster project — go straight to dashboard
+		cfg, err := config.LoadDeploy(configPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+			os.Exit(1)
+		}
+
+		app := tui.NewApp(eng, cfg)
+		p := tea.NewProgram(app, tea.WithAltScreen())
+		if _, err := p.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Not in a project directory — check the registry for known projects
+	pf, err := registry.Load()
+	if err != nil || len(pf.Projects) == 0 {
+		fmt.Fprintln(os.Stderr, "No muster.json found in current directory and no projects registered.")
+		fmt.Fprintln(os.Stderr, "Run 'muster setup' in a project directory first.")
+		os.Exit(1)
+	}
+
+	// Single project — go straight to it
+	if len(pf.Projects) == 1 {
+		p := pf.Projects[0]
+		cfgPath := config.FindConfigIn(p.Path)
+		if cfgPath == "" {
+			fmt.Fprintf(os.Stderr, "Registered project %s no longer has a config file.\n", p.Path)
+			fmt.Fprintln(os.Stderr, "Run 'muster projects --prune' to clean up.")
+			os.Exit(1)
+		}
+		cfg, err := config.LoadDeploy(cfgPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+			os.Exit(1)
+		}
+
+		app := tui.NewApp(eng, cfg)
+		prog := tea.NewProgram(app, tea.WithAltScreen())
+		if _, err := prog.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Multiple projects — show project picker
+	app := tui.NewAppWithPicker(eng, pf.Projects)
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

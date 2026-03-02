@@ -76,6 +76,20 @@ func FindConfig() (string, error) {
 	}
 }
 
+// FindConfigIn returns the config file path within a specific directory.
+// Unlike FindConfig, it does not walk up the directory tree.
+func FindConfigIn(dir string) string {
+	musterPath := filepath.Join(dir, "muster.json")
+	if _, err := os.Stat(musterPath); err == nil {
+		return musterPath
+	}
+	deployPath := filepath.Join(dir, "deploy.json")
+	if _, err := os.Stat(deployPath); err == nil {
+		return deployPath
+	}
+	return ""
+}
+
 // LoadDeploy parses a deploy.json file into a DeployConfig.
 func LoadDeploy(path string) (*DeployConfig, error) {
 	data, err := os.ReadFile(path)

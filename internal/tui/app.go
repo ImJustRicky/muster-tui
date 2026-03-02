@@ -3,13 +3,15 @@ package tui
 import (
 	"github.com/ImJustRicky/muster-tui/internal/config"
 	"github.com/ImJustRicky/muster-tui/internal/engine"
+	"github.com/ImJustRicky/muster-tui/internal/registry"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type screen int
 
 const (
-	screenDashboard screen = iota
+	screenProjectPicker screen = iota
+	screenDashboard
 	screenDeploy
 	screenLogViewer
 )
@@ -19,14 +21,16 @@ type App struct {
 	engine    *engine.Engine
 	config    *config.DeployConfig
 	screen    screen
+	projects  ProjectsModel
 	dashboard DashboardModel
 	deploy    DeployModel
 	logViewer LogViewerModel
+	projectDir string
 	width     int
 	height    int
 }
 
-// NewApp creates the root application model.
+// NewApp creates the root application model starting at the dashboard.
 func NewApp(eng *engine.Engine, cfg *config.DeployConfig) App {
 	return App{
 		engine:    eng,
@@ -36,8 +40,23 @@ func NewApp(eng *engine.Engine, cfg *config.DeployConfig) App {
 	}
 }
 
+// NewAppWithPicker creates the root model starting at the project picker.
+func NewAppWithPicker(eng *engine.Engine, projects []registry.Project) App {
+	return App{
+		engine:   eng,
+		screen:   screenProjectPicker,
+		projects: NewProjects(projects),
+	}
+}
+
 func (a App) Init() tea.Cmd {
-	return a.dashboard.Init()
+	switch a.screen {
+	case screenProjectPicker:
+		return a.projects.Init()
+	case screenDashboard:
+		return a.dashboard.Init()
+	}
+	return nil
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -47,6 +66,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		// Forward to active screen
 		switch a.screen {
+		case screenProjectPicker:
+			m, cmd := a.projects.Update(msg)
+			a.projects = m.(ProjectsModel)
+			return a, cmd
 		case screenDashboard:
 			m, cmd := a.dashboard.Update(msg)
 			a.dashboard = m.(DashboardModel)
@@ -65,6 +88,23 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return a, tea.Quit
 		}
+
+	// Project picker → dashboard transition
+	case ProjectSelectedMsg:
+		a.projectDir = msg.Project.Path
+		configPath := config.FindConfigIn(msg.Project.Path)
+		cfg, err := config.LoadDeploy(configPath)
+		if configPath == "" || err != nil {
+			// Fall back — just go to dashboard with nil config
+			a.screen = screenDashboard
+			a.config = nil
+			a.dashboard = NewDashboard(a.engine, nil)
+			return a, a.dashboard.Init()
+		}
+		a.config = cfg
+		a.screen = screenDashboard
+		a.dashboard = NewDashboard(a.engine, cfg)
+		return a, a.dashboard.Init()
 
 	// Navigation messages
 	case StartDeployMsg:
@@ -98,6 +138,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Route to active screen
 	switch a.screen {
+	case screenProjectPicker:
+		m, cmd := a.projects.Update(msg)
+		a.projects = m.(ProjectsModel)
+		return a, cmd
 	case screenDashboard:
 		m, cmd := a.dashboard.Update(msg)
 		a.dashboard = m.(DashboardModel)
@@ -117,6 +161,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a App) View() string {
 	switch a.screen {
+	case screenProjectPicker:
+		return a.projects.View()
 	case screenDashboard:
 		return a.dashboard.View()
 	case screenDeploy:

@@ -34,6 +34,64 @@ func (e *Engine) run(args ...string) *exec.Cmd {
 	return cmd
 }
 
+// runInDir runs a muster command with the working directory set to dir.
+func (e *Engine) runInDir(dir string, args ...string) *exec.Cmd {
+	cmd := e.run(args...)
+	cmd.Dir = dir
+	return cmd
+}
+
+// StatusInDir runs muster status --json in the given project directory.
+func (e *Engine) StatusInDir(dir string) (*StatusResult, error) {
+	cmd := e.runInDir(dir, "status", "--json")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("muster status failed: %w", err)
+	}
+
+	var result StatusResult
+	if err := json.Unmarshal(out, &result); err != nil {
+		return nil, fmt.Errorf("parsing status output: %w", err)
+	}
+
+	return &result, nil
+}
+
+// DeployInDir runs muster deploy --json in the given project directory.
+func (e *Engine) DeployInDir(dir string, services []string, dryRun bool) (<-chan DeployEvent, error) {
+	args := []string{"deploy", "--json"}
+	if dryRun {
+		args = append(args, "--dry-run")
+	}
+	args = append(args, services...)
+
+	cmd := e.runInDir(dir, args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("creating stdout pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("starting deploy: %w", err)
+	}
+
+	ch := make(chan DeployEvent)
+	go func() {
+		defer close(ch)
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			var ev DeployEvent
+			if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
+				continue
+			}
+			ch <- ev
+		}
+		cmd.Wait()
+	}()
+
+	return ch, nil
+}
+
 type ServiceStatus struct {
 	Name       string `json:"name"`
 	Status     string `json:"status"`
