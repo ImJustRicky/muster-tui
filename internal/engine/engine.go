@@ -239,6 +239,33 @@ func (e *Engine) Doctor(fix bool) (*DoctorResult, error) {
 	return &result, nil
 }
 
+// RunRaw starts a muster command and streams stdout/stderr lines on a channel.
+// Used for commands without --json (rollback, logs, cleanup).
+func (e *Engine) RunRaw(args []string) (<-chan string, error) {
+	cmd := e.run(args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("creating stdout pipe: %w", err)
+	}
+	cmd.Stderr = cmd.Stdout // merge stderr into stdout
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("starting command: %w", err)
+	}
+
+	ch := make(chan string)
+	go func() {
+		defer close(ch)
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			ch <- scanner.Text()
+		}
+		cmd.Wait()
+	}()
+
+	return ch, nil
+}
+
 // Version returns the muster CLI version string.
 func (e *Engine) Version() (string, error) {
 	cmd := e.run("--version")

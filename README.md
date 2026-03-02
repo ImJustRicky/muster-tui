@@ -1,20 +1,46 @@
-# muster-tui
+# muster-tui (beta)
 
-A rich TUI frontend for [muster](https://github.com/ImJustRicky/muster), the universal deploy framework.
+> **Early-stage Go TUI for [muster](https://github.com/ImJustRicky/muster).** This is a companion frontend — the primary bash TUI (`muster`) receives features first. muster-tui will catch up over time.
 
 Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Gloss](https://github.com/charmbracelet/lipgloss).
+
+## Status
+
+muster-tui covers the core workflows but is missing some features available in the regular bash TUI:
+
+**Working:**
+- Dashboard with service health + skills display
+- Deploy all / deploy single service with live progress
+- Full-screen log viewer with colorized output
+- Status, history, doctor screens
+- Logs, rollback, cleanup via raw output viewer
+- Service picker for targeted operations
+- Interactive settings editor (TUI mode, colors, stack, retention, etc.)
+- Double Ctrl+C quit protection
+
+**Not yet implemented:**
+- Deploy failure recovery menus (retry / rollback / skip / abort)
+- Dev mode (deploy + health watch loop)
+- Credential prompts during deploy
+- Remote deployment configuration
+- Skill marketplace browsing
+- Project setup wizard
+
+For the full feature set, use the bash TUI: just run `muster`.
 
 ## Prerequisites
 
 - [muster](https://github.com/ImJustRicky/muster) installed and on your PATH
 - Go 1.21+ (to build from source)
-- A muster auth token (see [Setup](#setup))
+- A muster auth token (auto-created on first launch, or see [Setup](#setup))
 
 ## Install
 
 ```bash
 go install github.com/ImJustRicky/muster-tui@latest
 ```
+
+Or download a binary from [Releases](https://github.com/ImJustRicky/muster-tui/releases).
 
 Or build from source:
 
@@ -26,20 +52,21 @@ go build -o muster-tui .
 
 ## Setup
 
-muster-tui communicates with the muster CLI using token-based auth. Create a token in your muster project:
+When you run `muster` with muster-tui installed, it auto-creates an auth token and launches the Go TUI. No manual setup needed.
+
+To switch between TUIs, open **Settings** in either interface and change **TUI Mode** to `go` or `bash`.
+
+### Manual token setup
 
 ```bash
 # Create a token with admin scope
 muster auth create my-tui --scope admin
-```
 
-Save the token (shown only once) to muster-tui:
-
-```bash
+# Save to muster-tui
 muster-tui --set-token <your-token>
 ```
 
-Or set it as an environment variable:
+Or set as environment variable:
 
 ```bash
 export MUSTER_TOKEN=<your-token>
@@ -47,82 +74,35 @@ export MUSTER_TOKEN=<your-token>
 
 ## Usage
 
-Run from any directory containing a muster `muster.json`:
-
 ```bash
 muster-tui
 ```
 
-### Dashboard
-
-The main screen shows:
-- Service health status with colored indicators (green = healthy, red = unhealthy)
-- Action menu: Deploy All, Deploy Service, History, Doctor, Quit
-- Auto-refreshes health every 20 seconds (`r` to force refresh)
-
-### Deploy View
-
-- Progress bar showing current/total services
-- Live streaming log output (last 6 lines)
-- `Ctrl+O` to open full-screen log viewer
-- Press any key to return to dashboard when complete
-
-### Log Viewer
-
-- Full-screen scrollable view of all deploy logs
-- Auto-follows new output (disables on manual scroll)
-- Colorized lines: errors in red, warnings in yellow, steps in gold
-- `Ctrl+O` to close and return to deploy view
+Or just run `muster` — it will launch muster-tui automatically when installed and TUI mode is set to `go`.
 
 ### Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
-| `j/k` or `arrows` | Navigate menu |
+| `j/k` or `arrows` | Navigate |
 | `enter` | Select |
-| `r` | Force refresh (dashboard) |
+| `r` | Force refresh (dashboard, status) |
 | `ctrl+o` | Toggle log viewer (deploy) |
-| `q` | Quit |
-| `ctrl+c` | Force quit |
-
-## Auth Scopes
-
-Tokens have scopes that control access:
-
-| Scope | Access |
-|-------|--------|
-| `read` | Status, history, doctor |
-| `deploy` | Everything in read + deploy, rollback |
-| `admin` | Full access |
-
-## Project Structure
-
-```
-muster-tui/
-├── main.go                    # Entry point
-├── internal/
-│   ├── auth/auth.go           # Token loading + storage
-│   ├── config/config.go       # muster.json + settings.json reader
-│   ├── engine/engine.go       # Calls muster CLI, parses JSON/NDJSON
-│   └── tui/
-│       ├── app.go             # Root model, screen routing
-│       ├── styles.go          # Lip Gloss theme (gold accent)
-│       ├── dashboard.go       # Services panel + action menu
-│       ├── deploy.go          # Deploy progress view
-│       ├── logviewer.go       # Full-screen scrollable log viewer
-│       └── menu.go            # Reusable menu component
-```
+| `a` | Toggle show-all (history) |
+| `esc` | Go back |
+| `q` | Quit / go back |
+| `ctrl+c` (x2) | Force quit |
 
 ## How It Works
 
 muster-tui is a frontend shell — it doesn't deploy anything itself. It calls the muster CLI with `--json` flags and parses the structured output:
 
-- `muster status --json` — service health (JSON object)
+- `muster status --json` — service health
 - `muster deploy --json` — deploy events (NDJSON stream)
-- `muster history --json` — event history (JSON array)
-- `muster doctor --json` — diagnostics (JSON object)
+- `muster history --json` — event history
+- `muster doctor --json` — diagnostics
 
-All commands are authenticated via the `MUSTER_TOKEN` environment variable passed to the muster subprocess.
+Commands without `--json` support (logs, rollback, cleanup) stream raw output into a scrollable viewport.
 
 ## License
 

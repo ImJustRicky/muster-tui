@@ -43,10 +43,12 @@ type DeployConfig struct {
 
 type GlobalSettings struct {
 	ColorMode            string `json:"color_mode"`
+	LogColorMode         string `json:"log_color_mode"`
 	LogRetentionDays     int    `json:"log_retention_days"`
 	DefaultStack         string `json:"default_stack"`
 	DefaultHealthTimeout int    `json:"default_health_timeout"`
 	UpdateCheck          string `json:"update_check"`
+	TUIMode              string `json:"tui_mode"`
 }
 
 // FindConfig walks up from the current working directory looking for muster.json,
@@ -117,10 +119,12 @@ func LoadDeploy(path string) (*DeployConfig, error) {
 func defaultGlobalSettings() *GlobalSettings {
 	return &GlobalSettings{
 		ColorMode:            "auto",
+		LogColorMode:         "auto",
 		LogRetentionDays:     7,
 		DefaultStack:         "bare",
 		DefaultHealthTimeout: 10,
 		UpdateCheck:          "on",
+		TUIMode:              "go",
 	}
 }
 
@@ -146,4 +150,25 @@ func LoadGlobal() (*GlobalSettings, error) {
 	}
 
 	return settings, nil
+}
+
+// SaveGlobal writes settings to ~/.muster/settings.json.
+func SaveGlobal(s *GlobalSettings) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	dir := filepath.Join(home, ".muster")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(dir, "settings.json")
+	return os.WriteFile(path, append(data, '\n'), 0600)
 }

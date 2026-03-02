@@ -8,19 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Navigation messages emitted by the deploy view.
-
-type OpenLogViewerMsg struct {
-	Lines []string
-	Title string
-}
-
-type BackToDashboardMsg struct{}
-
-type StartDryRunMsg struct {
-	Services []string
-}
-
 // Internal messages.
 
 type deployEventMsg engine.DeployEvent
