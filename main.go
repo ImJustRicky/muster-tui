@@ -55,7 +55,7 @@ func main() {
 	// Find deploy.json
 	configPath, err := config.FindConfig()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "deploy.json not found. Run this from a muster project directory.")
+		fmt.Fprintln(os.Stderr, "muster.json not found. Run this from a muster project directory.")
 		os.Exit(1)
 	}
 

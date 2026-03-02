@@ -49,7 +49,8 @@ type GlobalSettings struct {
 	UpdateCheck          string `json:"update_check"`
 }
 
-// FindConfig walks up from the current working directory looking for deploy.json.
+// FindConfig walks up from the current working directory looking for muster.json,
+// falling back to deploy.json for backwards compatibility.
 func FindConfig() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -57,9 +58,14 @@ func FindConfig() (string, error) {
 	}
 
 	for {
-		path := filepath.Join(dir, "deploy.json")
-		if _, err := os.Stat(path); err == nil {
-			return path, nil
+		// Prefer muster.json, fall back to deploy.json
+		musterPath := filepath.Join(dir, "muster.json")
+		if _, err := os.Stat(musterPath); err == nil {
+			return musterPath, nil
+		}
+		deployPath := filepath.Join(dir, "deploy.json")
+		if _, err := os.Stat(deployPath); err == nil {
+			return deployPath, nil
 		}
 
 		parent := filepath.Dir(dir)

@@ -47,7 +47,7 @@ export MUSTER_TOKEN=<your-token>
 
 ## Usage
 
-Run from any directory containing a muster `deploy.json`:
+Run from any directory containing a muster `muster.json`:
 
 ```bash
 muster-tui
@@ -102,7 +102,7 @@ muster-tui/
 ├── main.go                    # Entry point
 ├── internal/
 │   ├── auth/auth.go           # Token loading + storage
-│   ├── config/config.go       # deploy.json + settings.json reader
+│   ├── config/config.go       # muster.json + settings.json reader
 │   ├── engine/engine.go       # Calls muster CLI, parses JSON/NDJSON
 │   └── tui/
 │       ├── app.go             # Root model, screen routing
